@@ -532,8 +532,6 @@ L["Buffs"] = "Buff"
 L["Debuffs"] = "Debuff"
 L["%s's <%s> targets"] = "%s的<%s>目标"
 L["%s's <%s> sources"] = "%s的<%s>的来源"
-L["Sunder Counter"] = "破甲统计"
-L["Number of seconds after application to count refreshs."] = "应用后，在计算刷新前要等待多少秒。"
 L["Enemy Buffs"] = "敌人增益"
 L["Enemy Debuffs"] = "敌人减益"
 -- CC Tracker Module --

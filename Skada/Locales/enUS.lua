@@ -163,6 +163,7 @@ L["Font Size"] = true
 L["The font size of %s."] = true
 L["Font Outline"] = true
 L["Sets the font outline."] = true
+L["Outline"] = true
 L["Thick"] = true
 L["Thick outline"] = true
 L["Monochrome"] = true
@@ -587,8 +588,6 @@ L["Buffs"] = true
 L["Debuffs"] = true
 L["%s's <%s> targets"] = true
 L["%s's <%s> sources"] = true
-L["Sunder Counter"] = true
-L["Number of seconds after application to count refreshs."] = true
 L["Enemy Buffs"] = true
 L["Enemy Debuffs"] = true
 -- CC Tracker Module --

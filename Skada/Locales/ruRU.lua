@@ -535,8 +535,6 @@ L["Buffs"] = "Бафы"
 L["Debuffs"] = "Дебафы"
 L["%s's <%s> targets"] = "%s - Цели <%s>"
 L["%s's <%s> sources"] = "%s - Источник <%s>"
-L["Sunder Counter"] = "Раскол брони"
-L["Number of seconds after application to count refreshs."] = "Количество секунд ожидания после приложения для подсчета обновлений."
 L["Enemy Buffs"] = "Вражеские баффы"
 L["Enemy Debuffs"] = "Вражеские дебаффы"
 -- CC Tracker Module --

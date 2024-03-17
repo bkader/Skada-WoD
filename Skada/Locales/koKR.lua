@@ -534,8 +534,6 @@ L["Buffs"] = "버프"
 L["Debuffs"] = "디버프"
 L["%s's <%s> targets"] = "%s - %s의 대상"
 -- L["%s's <%s> sources"] = ""
--- L["Sunder Counter"] = ""
--- L["Number of seconds after application to count refreshs."] = ""
 -- L["Enemy Buffs"] = ""
 -- L["Enemy Debuffs"] = ""
 -- CC Tracker Module --

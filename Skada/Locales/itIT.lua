@@ -534,8 +534,6 @@ L["Buffs"] = "Benefici"
 L["Debuffs"] = "Penalità"
 L["%s's <%s> targets"] = "Bersagli di %s <%s>"
 L["%s's <%s> sources"] = "Fonti di %s <%s>"
-L["Sunder Counter"] = "Contatore di Sunder"
-L["Number of seconds after application to count refreshs."] = "Numero di secondi dopo l'applicazione per contare i rinnovi."
 L["Enemy Buffs"] = "Benefici nemici"
 L["Enemy Debuffs"] = "Penalità nemiche"
 -- CC Tracker Module --

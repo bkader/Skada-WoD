@@ -538,8 +538,6 @@ L["Buffs"] = "Buffs"
 L["Debuffs"] = "Debuffs"
 L["%s's <%s> targets"] = "Cibles \1242 <%2$s> \1242 %1$s"
 L["%s's <%s> sources"] = "Sources \1242 <%2$s> \1242 %1$s"
-L["Sunder Counter"] = "Fracasser armure"
-L["Number of seconds after application to count refreshs."] = "Nombre de secondes \195\160 attendre apr\195\168s application pour compter les rafra\195\174chissements."
 L["Enemy Buffs"] = "Buffs (Ennemi)"
 L["Enemy Debuffs"] = "Debuffs (Ennemi)"
 -- CC Tracker Module --

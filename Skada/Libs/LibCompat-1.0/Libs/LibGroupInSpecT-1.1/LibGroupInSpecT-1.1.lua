@@ -24,13 +24,14 @@
 --   .spec_background
 --   .spec_role
 --   .spec_role_detailed
+--   .spec_group -- active spec group (1/2/nil)
 --   .talents = {
---     [<spell_id>] = {
---       .idx -- 1 to MAX_NUM_TALENT
+--     [<talent_id>] = {
 --       .tier
 --       .column
 --       .name_localized
 --       .icon
+--       .talent_id
 --       .spell_id
 --     }
 --     ...
@@ -71,7 +72,7 @@
 --     Returns an array with the set of unit ids for the current group.
 --]]
 
-local MAJOR, MINOR = "LibGroupInSpecT-1.0", tonumber (("$Revision: 61 $"):match ("(%d+)") or 0)
+local MAJOR, MINOR = "LibGroupInSpecT-1.1", tonumber (("$Revision: 73 $"):match ("(%d+)") or 0)
 
 if not LibStub then error(MAJOR.." requires LibStub") end
 local lib = LibStub:NewLibrary (MAJOR, MINOR)
@@ -84,29 +85,21 @@ if not lib.events then error(MAJOR.." requires CallbackHandler") end
 local UPDATE_EVENT = "GroupInSpecT_Update"
 local REMOVE_EVENT = "GroupInSpecT_Remove"
 
-local COMMS_PREFIX = "LGIST1"
+local COMMS_PREFIX = "LGIST11"
 local COMMS_FMT = "0"
 local COMMS_DELIM = "\a"
 
 local INSPECT_DELAY = 1.5
 local INSPECT_TIMEOUT = 10 -- If we get no notification within 10s, give up on unit
 
--- XXX WoD compat
-local GetTalentInfo = MAX_NUM_TALENTS and _G.GetTalentInfo or function(index)
-  local tier = ceil(index / 3)
-  local column = index - ((tier - 1) * 3)
-  local groupIndex = GetActiveSpecGroup(false)
-  local talentID, name, iconTexture, selected, available = _G.GetTalentInfo(tier, column, groupIndex)
-  return name, iconTexture, tier, column, selected, available
-end
-local MAX_NUM_TALENTS = MAX_NUM_TALENTS or 21
-local MAX_NUM_TALENT_TIERS = MAX_NUM_TALENT_TIERS or 7
-
 local MAX_ATTEMPTS = 2
 
 --[===[@debug@
+lib.debug = true
 local function debug (...)
-  print (...)
+  if lib.debug then  -- allow programmatic override of debug output by client addons
+    print (...) 
+  end
 end
 --@end-debug@]===]
 
@@ -304,16 +297,45 @@ end
 -- Caches to deal with API shortcomings as well as performance
 lib.static_cache.global_specs = {}           -- [gspec]         -> { .idx, .name_localized, .description, .icon, .background, .role }
 lib.static_cache.glyph_info = {}             -- [spell_id]      -> { .idx, .name_localized, .icon, .glyph_type, .glyph_id }
-lib.static_cache.talents = {}                -- [spell_id]      -> { .idx, .name_localized, .icon, .tier, .column }
-lib.static_cache.talent_idx_to_spell_id = {} -- [class_id][idx] -> spell_id
 lib.static_cache.class_to_class_id = {}      -- [CLASS]         -> class_id
+
+-- The talents cache can no longer be pre-fetched on login, but is now constructed class-by-class as we inspect people.
+-- This probably means we want to only ever access it through the GetCachedTalentInfo() helper function below.
+lib.static_cache.talents = {}                -- [talent_id]      -> { .spell_id, .talent_id, .name_localized, .icon, .tier, .column }
 
 -- Dridzt: I'd love another way but none of the GetTalent* functions return spellID, GetTalentLink() and parsing the link gives talentID that's not related to spellID as well
 -- A quick tooltip scan is cheap though so elegance aside this is a good workaround considering this only runs once
-function lib:CacheGameData ()
-  local tip = CreateFrame ("GameTooltip", "LibGroupInSpecTScanTip", nil, "GameTooltipTemplate")
-  tip:SetOwner (UIParent, "ANCHOR_NONE")
+local tip = CreateFrame ("GameTooltip", MAJOR.."ScanTip", nil, "GameTooltipTemplate")
+tip:SetOwner (UIParent, "ANCHOR_NONE")
 
+function lib:GetCachedTalentInfo (class_id, tier, col, group, is_inspect, unit)
+  local talents = self.static_cache.talents
+  local talent_id, name, icon, sel, avail = GetTalentInfo (tier, col, group, is_inspect, unit)
+  if not talent_id or not class_id then
+    --[===[@debug@
+    debug ("GetCachedTalentInfo("..tostring(class_id)..","..tier..","..col..","..group..","..tostring(is_inspect)..","..tostring(unit)..") returned nil") --@end-debug@]===]
+    return {}
+  end
+  talents[class_id] = talents[class_id] or {}
+  local class_talents = talents[class_id]
+  if not class_talents[talent_id] then
+    tip:ClearLines ()
+    tip:SetTalent (talent_id, is_inspect, group)
+    local _, _,spell_id = tip:GetSpell ()
+    class_talents[talent_id] = {
+      spell_id = spell_id,
+      talent_id = talent_id,
+      name_localized = name,
+      icon = icon,
+      tier = tier,
+      column = col,
+    }
+  end
+  return class_talents[talent_id], sel
+end
+
+
+function lib:CacheGameData ()
   local gspecs = self.static_cache.global_specs
   gspecs[0] = {} -- Handle no-specialization case
   for class_id = 1, GetNumClasses () do
@@ -327,28 +349,6 @@ function lib:CacheGameData ()
       gspec.icon = icon
       gspec.background = background
       gspec.role = GetSpecializationRoleByID (gspec_id)
-    end
-
-    self.static_cache.talent_idx_to_spell_id[class_id] = {}
-    self.static_cache.talents[class_id] = {}
-
-    local idx2spell = self.static_cache.talent_idx_to_spell_id[class_id]
-    local talents = self.static_cache.talents[class_id]
-    for idx=1, MAX_NUM_TALENTS do
-      tip:ClearLines()
-      tip:SetTalent (idx, true, nil, nil, class_id)
-      local _, _, spell_id = tip:GetSpell ()
-      idx2spell[idx] = spell_id
-
-      local tname, tex, tier, column, sel, avail = GetTalentInfo (idx, true, nil, nil, class_id)
-      talents[spell_id] = {}
-      local talent = talents[spell_id]
-      talent.spell_id = spell_id
-      talent.idx = idx
-      talent.name_localized = tname
-      talent.icon = tex
-      talent.tier = tier
-      talent.column = column
     end
 
     local _, class = GetClassInfo (class_id)
@@ -522,12 +522,15 @@ function lib:BuildInfo (unit)
 
   -- If GetPlayerInfoByGUID didn't return the class, we can't do talents yet
   if info.class_id then
-    local talent_idx_to_spell_id = self.static_cache.talent_idx_to_spell_id
-    local talents                = self.static_cache.talents[info.class_id]
-    for idx = 1, MAX_NUM_TALENTS do
-      local _, _, _, _, sel = GetTalentInfo (idx, is_inspect, nil, unit, info.class_id)
-      local spell_id = talent_idx_to_spell_id[info.class_id][idx]
-      info.talents[spell_id] = sel and talents[spell_id] or nil -- Set/clear as needed
+    info.spec_group = GetActiveSpecGroup (is_inspect)
+    wipe (info.talents) -- Due to spec-specific talents we might leave things in on a spec-change otherwise
+    for tier = 1, MAX_TALENT_TIERS do
+      for col = 1, NUM_TALENT_COLUMNS do
+        local talent, sel = self:GetCachedTalentInfo (info.class_id, tier, col, info.spec_group, is_inspect, unit)
+        if talent and talent.talent_id and sel then
+          info.talents[talent.talent_id] = talent
+        end
+      end
     end
   end
 
@@ -638,7 +641,7 @@ function lib:SendLatestSpecData ()
   local info = self.cache[guid]
   if not info then return end
 
-  -- fmt, guid, global_spec_id, talent1 -> MAX_NUM_TALENT_TIERS, glyph1 -> NUM_GLYPH_SLOTS, glyph1 detail, glyph 2 detail,
+  -- fmt, guid, global_spec_id, talent1 -> MAX_TALENT_TIERS, glyph1 -> NUM_GLYPH_SLOTS, glyph1 detail, glyph 2 detail,
   -- sequentially, allow no gaps for missing talents/glyphs we decode by index on the receiving end.
   local datastr = COMMS_FMT..COMMS_DELIM..guid..COMMS_DELIM..(info.global_spec_id or 0)
   local talentCount = 1
@@ -646,7 +649,7 @@ function lib:SendLatestSpecData ()
     datastr = datastr..COMMS_DELIM..k
     talentCount = talentCount + 1
   end
-  for i=talentCount,MAX_NUM_TALENT_TIERS do
+  for i=talentCount,MAX_TALENT_TIERS do
     datastr = datastr..COMMS_DELIM..0
   end
 
@@ -684,7 +687,7 @@ msg_idx.fmt            = 1
 msg_idx.guid           = msg_idx.fmt + 1
 msg_idx.global_spec_id = msg_idx.guid + 1
 msg_idx.talents        = msg_idx.global_spec_id + 1
-msg_idx.glyphs         = msg_idx.talents + MAX_NUM_TALENT_TIERS
+msg_idx.glyphs         = msg_idx.talents + MAX_TALENT_TIERS
 msg_idx.glyph_detail   = msg_idx.glyphs + NUM_GLYPH_SLOTS
 
 function lib:CHAT_MSG_ADDON (prefix, datastr, scope, sender)
@@ -730,13 +733,24 @@ function lib:CHAT_MSG_ADDON (prefix, datastr, scope, sender)
   info.spec_role           = gspecs[gspec_id].role
   info.spec_role_detailed  = global_spec_id_roles_detailed[gspec_id]
 
-  local talents = self.static_cache.talents[info.class_id]
+  local need_inspect = nil
   info.talents = wipe (info.talents or {})
-  for i = msg_idx.talents, msg_idx.glyphs - 1 do
-    local spell_id = tonumber (data[i])
-    if spell_id and spell_id > 0 then
-      info.talents[spell_id] = talents[spell_id]
+  local talents = self.static_cache.talents[info.class_id]
+  if talents then -- The group entry is created before we have inspect-data, so may not have cached talents yet
+    for i = msg_idx.talents, msg_idx.glyphs - 1 do
+      local talent_id = tonumber (data[i])
+      if talent_id and talent_id > 0 then
+        if talents[talent_id] then
+          info.talents[talent_id] = talents[talent_id]
+        else
+          -- While we had some talents for this class, we apparently didn't have all for this particular spec, so mark for inspect
+          need_inspect = 1
+        end
+      end
     end
+  else
+    -- Talents weren't pre-cached, so mark for inspect
+    need_inspect = 1
   end
 
   local glyph_info = self.static_cache.glyph_info
@@ -763,7 +777,8 @@ function lib:CHAT_MSG_ADDON (prefix, datastr, scope, sender)
     end
   end
 
-  self.state.mainq[guid], self.state.staleq[guid] = nil, nil
+  self.state.mainq[guid], self.state.staleq[guid] = need_inspect, nil
+  if need_inspect then self.frame:Show () end
 
   --[===[@debug@
   debug ("Firing LGIST update event for unit "..unit..", GUID "..guid) --@end-debug@]===]

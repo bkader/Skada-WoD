@@ -297,7 +297,7 @@ do
 		__mode = "kv", -- make it weak
 		__index = function(self, guid)
 			if guid then
-				local id = tonumber(guid:sub(7, 10), 16) or 0
+				local id = math.abs(tonumber(guid:sub(-16, -12)) or 0)
 				rawset(self, guid, id) -- cache it
 				return id
 			end
@@ -355,7 +355,7 @@ end
 do
 	local rawget = rawget
 	local UnitExists, UnitGUID = UnitExists, UnitGUID
-	local LGT = LibStub("LibGroupInSpecT-1.0")
+	local LGT = LibStub("LibGroupInSpecT-1.1")
 	local GetUnitSpec, GetUnitRole = {}, {}
 
 	GetUnitSpec = setmetatable(GetUnitSpec, {
